@@ -10,7 +10,7 @@
     maxRequests: -1,
 
     // Note settings
-    addNote: true,
+    addNote: false,
     // Use {{name}} for first name, {{fullName}} for full name parsed from aria-label
     note: "Hey {{name}}, I'm looking forward to connecting with you!",
 
