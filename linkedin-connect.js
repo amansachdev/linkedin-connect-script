@@ -20,8 +20,10 @@
     ],
     nextPageSelector: '.artdeco-pagination__button--next',
     modalSelector: '[role="dialog"], .artdeco-modal, .artdeco-modal-overlay',
+    actionbarSelector: '.artdeco-modal__actionbar',
     addNoteButtonText: /^(Add a note|Add note)$/i,
-    sendButtonText: /^(Send|Connect)$/i,
+    sendButtonText: /^(Send)$/i,
+    sendWithoutNoteButtonText: /^(Send without a note)$/i,
     doneButtonText: /^(Done|Got it)$/i,
     dismissButtonSelector:
       '.artdeco-modal__dismiss, button[aria-label="Dismiss"], [data-test-modal-close-btn]',
@@ -134,7 +136,22 @@
   };
 
   const getModal = () => {
-    return queryAll(config.modalSelector).find(isVisible);
+    // Try the standard modal selectors first.
+    let modal = queryAll(config.modalSelector).find(isVisible);
+    if (modal) return modal;
+
+    // LinkedIn sometimes only exposes the actionbar; walk up to the modal root.
+    const actionbar = queryAll(config.actionbarSelector).find(isVisible);
+    if (actionbar) {
+      return (
+        actionbar.closest('[role="dialog"]') ||
+        actionbar.closest('.artdeco-modal') ||
+        actionbar.closest('.artdeco-modal-overlay') ||
+        actionbar
+      );
+    }
+
+    return null;
   };
 
   const clickDismiss = async () => {
@@ -177,6 +194,17 @@
     return true;
   };
 
+  const clickSendWithoutNote = async (modal) => {
+    const btn = findVisibleByText("button, a", config.sendWithoutNoteButtonText, modal);
+    if (btn) {
+      btn.click();
+      console.info("[linkedin-connect] 'Send without a note' clicked.");
+      await sleep(config.modalDelay);
+      return true;
+    }
+    return false;
+  };
+
   const clickSend = async (modal) => {
     const sendBtn = findVisibleByText("button, a", config.sendButtonText, modal);
     if (sendBtn) {
@@ -185,15 +213,24 @@
       await sleep(config.modalDelay);
       return true;
     }
+    return false;
+  };
 
-    // Some modals have a "Done" or "Got it" button after sending.
+  const clickDone = async (modal) => {
     const doneBtn = findVisibleByText("button, a", config.doneButtonText, modal);
     if (doneBtn) {
       doneBtn.click();
+      console.info("[linkedin-connect] Done clicked.");
       await sleep(config.modalDelay);
       return true;
     }
+    return false;
+  };
 
+  const finalizeInvite = async (modal) => {
+    if (await clickSend(modal)) return true;
+    if (await clickSendWithoutNote(modal)) return true;
+    if (await clickDone(modal)) return true;
     return false;
   };
 
@@ -224,9 +261,9 @@
       }
     }
 
-    const sent = await clickSend(modal);
+    const sent = await finalizeInvite(modal);
     if (!sent) {
-      console.warn("[linkedin-connect] Send button not found; closing modal.");
+      console.warn("[linkedin-connect] No send/done button found; closing modal.");
       await clickDismiss();
       return false;
     }
