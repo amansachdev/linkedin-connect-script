@@ -155,30 +155,32 @@
   };
 
   const clickDismiss = async () => {
-    const modal = getModal();
-    if (!modal) return;
-    const dismiss = modal.querySelector(config.dismissButtonSelector);
-    if (dismiss && isVisible(dismiss) && !isDisabled(dismiss)) {
+    const dismiss = findVisibleByText(
+      config.dismissButtonSelector,
+      /.*/,
+      document
+    ) || queryAll(config.dismissButtonSelector).find((el) => isVisible(el) && !isDisabled(el));
+    if (dismiss) {
       dismiss.click();
       await sleep(config.modalDelay);
     }
   };
 
-  const clickAddNote = async (modal, fullName, firstName) => {
-    const addNoteBtn = findVisibleByText("button, a", config.addNoteButtonText, modal);
+  const clickAddNote = async (fullName, firstName) => {
+    const addNoteBtn = findVisibleByText("button, a", config.addNoteButtonText);
     if (!addNoteBtn) return false;
 
     addNoteBtn.click();
     console.info("[linkedin-connect] Add a note clicked.");
     await sleep(config.modalDelay);
 
-    // Find the custom message textarea.
+    // Find the custom message textarea anywhere in the document.
     const noteTextBox =
-      modal.querySelector("textarea#custom-message") ||
-      modal.querySelector('textarea[name="message"]') ||
-      modal.querySelector("textarea");
+      document.querySelector("textarea#custom-message") ||
+      document.querySelector('textarea[name="message"]') ||
+      document.querySelector("textarea");
 
-    if (noteTextBox) {
+    if (noteTextBox && isVisible(noteTextBox)) {
       const message = config.note
         .replace(/{{fullName}}/g, fullName)
         .replace(/{{name}}/g, firstName);
@@ -194,8 +196,8 @@
     return true;
   };
 
-  const clickSendWithoutNote = async (modal) => {
-    const btn = findVisibleByText("button, a", config.sendWithoutNoteButtonText, modal);
+  const clickSendWithoutNote = async () => {
+    const btn = findVisibleByText("button, a", config.sendWithoutNoteButtonText);
     if (btn) {
       btn.click();
       console.info("[linkedin-connect] 'Send without a note' clicked.");
@@ -205,8 +207,8 @@
     return false;
   };
 
-  const clickSend = async (modal) => {
-    const sendBtn = findVisibleByText("button, a", config.sendButtonText, modal);
+  const clickSend = async () => {
+    const sendBtn = findVisibleByText("button, a", config.sendButtonText);
     if (sendBtn) {
       sendBtn.click();
       console.info("[linkedin-connect] Send clicked.");
@@ -216,8 +218,8 @@
     return false;
   };
 
-  const clickDone = async (modal) => {
-    const doneBtn = findVisibleByText("button, a", config.doneButtonText, modal);
+  const clickDone = async () => {
+    const doneBtn = findVisibleByText("button, a", config.doneButtonText);
     if (doneBtn) {
       doneBtn.click();
       console.info("[linkedin-connect] Done clicked.");
@@ -227,10 +229,10 @@
     return false;
   };
 
-  const finalizeInvite = async (modal) => {
-    if (await clickSend(modal)) return true;
-    if (await clickSendWithoutNote(modal)) return true;
-    if (await clickDone(modal)) return true;
+  const finalizeInvite = async () => {
+    if (await clickSend()) return true;
+    if (await clickSendWithoutNote()) return true;
+    if (await clickDone()) return true;
     return false;
   };
 
@@ -242,26 +244,40 @@
     await sleep(config.modalDelay);
   };
 
+  const waitForInviteButtons = async (timeoutMs = 5000) => {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const addNoteBtn = findVisibleByText("button, a", config.addNoteButtonText);
+      const sendWithoutNoteBtn = findVisibleByText("button, a", config.sendWithoutNoteButtonText);
+      const sendBtn = findVisibleByText("button, a", config.sendButtonText);
+      if (addNoteBtn || sendWithoutNoteBtn || sendBtn) {
+        return true;
+      }
+      await sleep(250);
+    }
+    return false;
+  };
+
   const sendInvite = async (button) => {
     const { fullName, firstName } = getName(button);
     console.info(`[linkedin-connect] Sending invite to ${fullName || firstName || "unknown"}.`);
 
     await clickConnectButton(button);
 
-    const modal = getModal();
-    if (!modal) {
-      console.warn("[linkedin-connect] No modal appeared after clicking Connect.");
+    const buttonsAppeared = await waitForInviteButtons();
+    if (!buttonsAppeared) {
+      console.warn("[linkedin-connect] No invite dialog buttons appeared after clicking Connect.");
       return false;
     }
 
     if (config.addNote && config.note) {
-      const addedNote = await clickAddNote(modal, fullName, firstName);
+      const addedNote = await clickAddNote(fullName, firstName);
       if (!addedNote) {
         console.info("[linkedin-connect] Add a note option not present, sending without note.");
       }
     }
 
-    const sent = await finalizeInvite(modal);
+    const sent = await finalizeInvite();
     if (!sent) {
       console.warn("[linkedin-connect] No send/done button found; closing modal.");
       await clickDismiss();
