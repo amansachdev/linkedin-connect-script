@@ -19,6 +19,7 @@
       'a[href*="/preload/search-custom-invite/"]',
     ],
     nextPageSelector: '.artdeco-pagination__button--next',
+    nextPageButtonText: /^Next$/i,
     modalSelector: '[role="dialog"], .artdeco-modal, .artdeco-modal-overlay',
     actionbarSelector: '.artdeco-modal__actionbar',
     addNoteButtonText: /^(Add a note|Add note)$/i,
@@ -363,8 +364,40 @@
     return "pageDone";
   };
 
+  const getNextPageButton = () => {
+    // 1. Try the legacy LinkedIn class selector.
+    let btn = document.querySelector(config.nextPageSelector);
+    if (btn && isVisible(btn) && !isDisabled(btn)) return btn;
+
+    // 2. Try a button or anchor with text exactly "Next".
+    btn = deepFindVisibleByText("button, a", config.nextPageButtonText);
+    if (btn) return btn;
+
+    // 3. The Next text may be on a span inside a clickable element; find the closest clickable parent.
+    const nextTextEl = deepQueryAll("*").find((el) => {
+      const text = getText(el);
+      return config.nextPageButtonText.test(text) && isVisible(el);
+    });
+    if (nextTextEl) {
+      const clickableParent = nextTextEl.closest("button, a, [role='button']");
+      if (clickableParent && isVisible(clickableParent) && !isDisabled(clickableParent)) {
+        return clickableParent;
+      }
+      // The text element itself may be the clickable one.
+      if (
+        nextTextEl.tagName === "BUTTON" ||
+        nextTextEl.tagName === "A" ||
+        nextTextEl.getAttribute("role") === "button"
+      ) {
+        return nextTextEl;
+      }
+    }
+
+    return null;
+  };
+
   const nextPage = async () => {
-    const nextBtn = document.querySelector(config.nextPageSelector);
+    const nextBtn = getNextPageButton();
     if (!nextBtn || isDisabled(nextBtn)) {
       console.info("[linkedin-connect] No next page button found or it is disabled.");
       return false;
