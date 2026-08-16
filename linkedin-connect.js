@@ -68,9 +68,26 @@
 
   const queryAll = (selector) => [...document.querySelectorAll(selector)];
 
+  const deepQueryAll = (selector, root = document, depth = 0) => {
+    if (depth > 10) return [];
+    const results = [...root.querySelectorAll(selector)];
+    const shadowHosts = [...root.querySelectorAll('*')].filter((el) => el.shadowRoot);
+    for (const host of shadowHosts) {
+      results.push(...deepQueryAll(selector, host.shadowRoot, depth + 1));
+    }
+    return results;
+  };
+
   const findVisibleByText = (selector, pattern, root = document) => {
     const elements = [...root.querySelectorAll(selector)];
     return elements.find((el) => {
+      const text = getText(el);
+      return pattern.test(text) && isVisible(el) && !isDisabled(el);
+    });
+  };
+
+  const deepFindVisibleByText = (selector, pattern) => {
+    return deepQueryAll(selector).find((el) => {
       const text = getText(el);
       return pattern.test(text) && isVisible(el) && !isDisabled(el);
     });
@@ -81,7 +98,7 @@
 
     // Primary: LinkedIn search results use anchor tags with a custom-invite href.
     for (const selector of config.connectButtonSelectors) {
-      buttons = queryAll(selector).filter(
+      buttons = deepQueryAll(selector).filter(
         (el) => isVisible(el) && !isDisabled(el)
       );
       if (buttons.length > 0) break;
@@ -89,7 +106,7 @@
 
     // Fallback: any visible clickable with trimmed text exactly "Connect".
     if (buttons.length === 0) {
-      buttons = [...queryAll('a, button, [role="button"]')].filter((el) => {
+      buttons = deepQueryAll('a, button, [role="button"]').filter((el) => {
         if (!isVisible(el) || isDisabled(el)) return false;
         const text = getText(el);
         return text === "Connect";
@@ -155,11 +172,11 @@
   };
 
   const clickDismiss = async () => {
-    const dismiss = findVisibleByText(
-      config.dismissButtonSelector,
-      /.*/,
-      document
-    ) || queryAll(config.dismissButtonSelector).find((el) => isVisible(el) && !isDisabled(el));
+    const dismiss =
+      deepFindVisibleByText(config.dismissButtonSelector, /.*/) ||
+      deepQueryAll(config.dismissButtonSelector).find(
+        (el) => isVisible(el) && !isDisabled(el)
+      );
     if (dismiss) {
       dismiss.click();
       await sleep(config.modalDelay);
@@ -167,18 +184,18 @@
   };
 
   const clickAddNote = async (fullName, firstName) => {
-    const addNoteBtn = findVisibleByText("button, a", config.addNoteButtonText);
+    const addNoteBtn = deepFindVisibleByText("button, a", config.addNoteButtonText);
     if (!addNoteBtn) return false;
 
     addNoteBtn.click();
     console.info("[linkedin-connect] Add a note clicked.");
     await sleep(config.modalDelay);
 
-    // Find the custom message textarea anywhere in the document.
+    // Find the custom message textarea anywhere, including shadow roots.
     const noteTextBox =
-      document.querySelector("textarea#custom-message") ||
-      document.querySelector('textarea[name="message"]') ||
-      document.querySelector("textarea");
+      deepQueryAll("textarea#custom-message")[0] ||
+      deepQueryAll('textarea[name="message"]')[0] ||
+      deepQueryAll("textarea")[0];
 
     if (noteTextBox && isVisible(noteTextBox)) {
       const message = config.note
@@ -197,7 +214,7 @@
   };
 
   const clickSendWithoutNote = async () => {
-    const btn = findVisibleByText("button, a", config.sendWithoutNoteButtonText);
+    const btn = deepFindVisibleByText("button, a", config.sendWithoutNoteButtonText);
     if (btn) {
       btn.click();
       console.info("[linkedin-connect] 'Send without a note' clicked.");
@@ -208,7 +225,7 @@
   };
 
   const clickSend = async () => {
-    const sendBtn = findVisibleByText("button, a", config.sendButtonText);
+    const sendBtn = deepFindVisibleByText("button, a", config.sendButtonText);
     if (sendBtn) {
       sendBtn.click();
       console.info("[linkedin-connect] Send clicked.");
@@ -219,7 +236,7 @@
   };
 
   const clickDone = async () => {
-    const doneBtn = findVisibleByText("button, a", config.doneButtonText);
+    const doneBtn = deepFindVisibleByText("button, a", config.doneButtonText);
     if (doneBtn) {
       doneBtn.click();
       console.info("[linkedin-connect] Done clicked.");
@@ -247,9 +264,9 @@
   const waitForInviteButtons = async (timeoutMs = 5000) => {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
-      const addNoteBtn = findVisibleByText("button, a", config.addNoteButtonText);
-      const sendWithoutNoteBtn = findVisibleByText("button, a", config.sendWithoutNoteButtonText);
-      const sendBtn = findVisibleByText("button, a", config.sendButtonText);
+      const addNoteBtn = deepFindVisibleByText("button, a", config.addNoteButtonText);
+      const sendWithoutNoteBtn = deepFindVisibleByText("button, a", config.sendWithoutNoteButtonText);
+      const sendBtn = deepFindVisibleByText("button, a", config.sendButtonText);
       if (addNoteBtn || sendWithoutNoteBtn || sendBtn) {
         return true;
       }
