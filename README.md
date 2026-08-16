@@ -8,7 +8,7 @@ Keywords: LinkedIn auto connect, LinkedIn connection request automation, LinkedI
 
 - Finds visible **Connect** buttons on LinkedIn people-search result pages.
 - Clicks each Connect button and handles the invitation modal.
-- Optionally clicks **Add a note**, pastes your message, and clicks **Send**.
+- Sends without a note by default; optionally clicks **Add a note**, pastes your message, and clicks **Send**.
 - Extracts the person's first name and full name from the button's `aria-label` or card title.
 - Auto-fills `{{name}}` (first name) and `{{fullName}}` in your note template.
 - Navigates to the next page and repeats until finished or stopped.
@@ -66,10 +66,10 @@ const config = {
   modalDelay: 1500,       // ms to wait for modal content
   nextPageDelay: 4000,    // ms to wait after clicking Next
 
-  maxRequests: -1,        // -1 = no limit
+    maxRequests: -1,        // -1 = no limit
 
-  addNote: true,
-  note: "Hey {{name}}, I'm looking forward to connecting with you!",
+    addNote: false,
+    note: "Hey {{name}}, I'm looking forward to connecting with you!",
 };
 ```
 
